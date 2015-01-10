@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<style type="text/css">
+			body, h2
+			{
+				font-family:Helvetica, Arial;
+				font-weight:bold;
+				font-size:12px;
+			}
+
+				*
+				{
+					margin:0;
+					padding:0;
+				}
+
+				body > div
+				{
+					position:relative;
+					margin:20px 10px;
+				}
+
+					h1
+					{
+						border-top:1px solid black;
+						padding-top:20px;
+					}
+
+					body > div > div
+					{
+						height:50px;
+						line-height:20px;
+					}
+
+					h2
+					{
+						margin:0;
+						padding:0;
+					}
+
+					.ball
+					{
+						width:20px;
+						height:20px;
+						border-radius:10px;
+						background-color:rgba(0,0,0,1);
+						color:#fff;
+						text-align:center;
+						position:absolute;
+						top:0;
+						left:0;
+						margin:0;
+					}
+
+					.ball:last-child
+					{
+						background-color:#f00;
+					}
+
+					.display
+					{
+						font-size:50px;
+						line-height:50px;
+					}
+
+					input
+					{
+						width:500px;
+					}
+
+					#clockHolder
+					{
+						margin-bottom:20px;
+					}
+
+					.graphIt
+					{
+						font-weight:normal;
+					}
+
+					button
+					{
+						font-family:inherit;
+						font-weight:bold;
+						padding:10px;
+					}
+
+					canvas
+					{
+						width:500px;
+						height:500px;
+						background-color:#ccc;
+						display:none;
+						margin-left:10px;
+					}
+
+					.done canvas
+					{
+						display:block;
+					}
+
+					.done .graphIt
+					{
+						display:none;
+					}
+		</style>
+	</head>
+	<body>
+		<div id="clockCalculator">
+			<input type="range" min="27" max="127"/>
+			<div class="display">X balls cycle after Y days.</div>
+		</div>
+		<div id="clockHolder">
+			<div>
+				<h2>Minutes:</h2>
+			</div>
+			<div>
+				<h2>Five Minutes:</h2>
+			</div>
+			<div>
+				<h2>Hours:</h2>
+			</div>
+			<div>
+				<h2>Queue:</h2>
+			</div>
+			<h2>Current Time:</h2>
+			<div class="display"></div>
+			<h2>Time Lapse:</h2>
+			<input type="range" min="0" max="0.99" value="0" step="0.001"/>
+		</div>
+		<div class="graphIt">
+			<button>Graph it</button>
+			<p>(This is gonna make your browser chug)</p>
+		</div>
+		<canvas></canvas>
+		<script>
+			(function(){
+				//Ball class
+					function Ball(id)
+					{
+						this.id=id;
+					}
+
+				//BallDisplay class (inherits from Ball)
+					BallDisplay.prototype=Object.create(Ball.prototype);
+					BallDisplay.prototype.constructor=BallDisplay;
+					BallDisplay.SPEED=0.5;
+					function BallDisplay(id)
+					{
+						Ball.call(this, id);
+						this.node=document.createElement("div");
+						this.node.className="ball";
+						this._style=this.node.style;
+						this._destX=0;
+						this._destY=0;
+						this._x=0;
+						this._y=0;
+						this.node.innerHTML=id;
+					}
+
+					BallDisplay.prototype.position=function(x,y)
+					{
+						this._destX=x;
+						this._destY=y;
+					}
+
+					BallDisplay.prototype.ease=function()
+					{
+						BallDisplay.ease(this, "_x", this._destX);
+						BallDisplay.ease(this, "_y", this._destY);
+						this.transform(this._x, this._y);
+					}
+
+					BallDisplay.ease=function(targ, prop, dest)
+					{
+						targ[prop]+=(dest-targ[prop])*BallDisplay.SPEED;
+					}
+
+					BallDisplay.prototype.transform=function(x, y)
+					{
+						var value="translate3d("+x+"px,"+y+"px,0)";
+						this._style.webkitTransform=value;
+						this._style.transform=value;
+					}
+
+				//Clock class
+					function Clock(numBalls)
+					{
+						this._minutes=[];
+						this._fiveMinutes=[];
+						this._hours=[];
+						this._queue=[];
+						this._numBalls=numBalls;
+						for(var i=0; i<numBalls; i++)
+						{
+							var ball=new BallDisplay(i);
+							this._queue.push(ball);
+						}
+					}
+
+					Clock.prototype.increment=function()
+					{
+						var ball=this._queue.shift();
+						if(this._minutes.length<4)
+						{
+							this._minutes.push(ball);
+						}
+						else
+						{
+							while(this._minutes.length)
+							{
+								this._queue.push(this._minutes.pop());
+							}
+
+							if(this._fiveMinutes.length<11)
+							{
+								this._fiveMinutes.push(ball);
+							}
+							else
+							{
+								while(this._fiveMinutes.length)
+								{
+									this._queue.push(this._fiveMinutes.pop());
+								}
+
+								if(this._hours.length<11)
+								{
+									this._hours.push(ball);
+								}
+								else
+								{
+									while(this._hours.length)
+									{
+										this._queue.push(this._hours.pop());
+									}
+
+									this._queue.push(ball);
+								}
+							}
+						}
+					}
+
+					Clock.prototype.time=function()
+					{
+						return Clock._formatNumber(this._hours.length+1)+":"+Clock._formatNumber(this._fiveMinutes.length*5+this._minutes.length);
+					}
+
+					Clock.prototype.home=function()
+					{
+						if(this._queue.length!=this._numBalls)
+							return false;
+						for(var i=0; i<this._numBalls; i++)
+						{
+							if(this._queue[i].id!=i)
+								return false;
+						}
+						return true;
+					}
+
+					Clock._formatNumber=function(num)
+					{
+						var str=String(num);
+						if(str.length<2)
+							str="0"+str;
+						return str;
+					}
+
+				//ClockDisplay class (inherits from Clock)
+					ClockDisplay.prototype=Object.create(Clock.prototype);
+					ClockDisplay.prototype.constructor=ClockDisplay;
+					ClockDisplay._SPACING=5;
+					function ClockDisplay(numBalls, element)
+					{
+						Clock.call(this, numBalls);
+						this._element=element;
+						this._allBalls=this._queue.slice(0);
+						for(var i=0; i<numBalls; i++)
+						{
+							element.appendChild(this._queue[i].node);
+						}
+
+						this._zero=new BallDisplay("");
+						element.appendChild(this._zero.node);
+						this._ballSize=this._zero.node.offsetWidth;
+
+						var holders=element.querySelectorAll("div");
+						var top=element.getBoundingClientRect().top;
+						this._yPos=[];
+						for(var i=0, iLen=holders.length; i<iLen; i++)
+						{
+							var holder=holders[i];
+							this._yPos.push(holder.getBoundingClientRect().top+holder.offsetHeight-this._ballSize-ClockDisplay._SPACING-top);
+						}
+						this._zero.transform(0,this._yPos[2]);
+						this._display=element.querySelector(".display");
+						var input=element.querySelector("input");
+						input.addEventListener("input", this._onChange.bind(this));
+
+						this._loop=this._loop.bind(this);
+						this._loop();
+
+						var now=new Date();
+						var hour=now.getHours()%12-1;
+						while(this._hours.length<hour)
+						{
+							this.increment();
+						}
+						var minute=now.getMinutes();
+						while(this._fiveMinutes.length*5+this._minutes.length<minute)
+						{
+							this.increment();
+						}
+
+						this._positionBalls();
+						this._onInterval=this._onInterval.bind(this);
+						this._changeTime(1-input.value);
+					}
+
+					ClockDisplay.prototype._positionBalls=function()
+					{
+						var y=this._yPos[0];
+						for(var i=0, iLen=this._minutes.length; i<iLen; i++)
+						{
+							this._minutes[i].position(i*(ClockDisplay._SPACING+this._ballSize), y);
+						}
+						y=this._yPos[1];
+						for(i=0, iLen=this._fiveMinutes.length; i<iLen; i++)
+						{
+							this._fiveMinutes[i].position(i*(ClockDisplay._SPACING+this._ballSize), y);
+						}
+						y=this._yPos[2];
+						for(i=0, iLen=this._hours.length; i<iLen; i++)
+						{
+							this._hours[i].position((i+1)*(ClockDisplay._SPACING+this._ballSize), y);
+						}
+						y=this._yPos[3];
+						for(i=0, iLen=this._queue.length; i<iLen; i++)
+						{
+							this._queue[i].position(i*(ClockDisplay._SPACING+this._ballSize), y);
+						}
+						this._display.innerHTML=this.time();
+					}
+
+					ClockDisplay.prototype._loop=function()
+					{
+						for(var i=0; i<this._numBalls; i++)
+						{
+							this._allBalls[i].ease();
+						}
+						this._raf=window.requestAnimationFrame(this._loop);
+					}
+
+					ClockDisplay.prototype._onChange=function(evt)
+					{
+						this._changeTime(1-evt.target.value);
+					}
+
+					ClockDisplay.prototype._changeTime=function(num)
+					{
+						this._setInterval(num);
+					}
+
+					ClockDisplay.prototype._setInterval=function(num)
+					{
+						if(this._interval)
+							clearInterval(this._interval);
+						this._interval=setInterval(this._onInterval, Math.pow(num,10)*1000*60);
+					}
+
+					ClockDisplay.prototype._onInterval=function()
+					{
+						this.increment();
+						this._positionBalls();
+					}
+
+					ClockDisplay.prototype.destroy=function()
+					{
+						window.cancelAnimationFrame(this._raf);
+						clearInterval(this._interval);
+						this._element.removeChild(this._zero.node);
+						for(var i=0; i<this._numBalls; i++)
+						{
+							this._element.removeChild(this._allBalls[i].node);
+						}
+					}
+
+				//create instances/page functionality
+					var clockDisplay;
+					var days=[];
+					var input=document.querySelector("#clockCalculator input");
+					var display=document.querySelector("#clockCalculator .display");
+					var clockHolder=document.getElementById("clockHolder");
+					var canvas=document.querySelector("canvas");
+					var canvasWidth;
+					var canvasHeight;
+					var context;
+					var min;
+					var max;
+					var bar;
+
+					input.addEventListener("input", onInput);
+					onInput();
+
+					function onInput()
+					{
+						var balls=input.value;
+						if(clockDisplay)
+							clockDisplay.destroy();
+						var count=findDays(balls);
+						display.innerHTML=balls+" balls cycle after "+count/60/24+" days."
+						clockDisplay=new ClockDisplay(balls, clockHolder);
+					}
+
+					function findDays(balls)
+					{
+						var count=days[balls];
+						if(!count)
+						{
+							count=0;
+							var clock=new Clock(balls);
+							do
+							{
+								clock.increment();
+								count++;
+							}
+							while(!clock.home())
+							days[balls]=count;
+						}
+					}
+
+					document.querySelector("button").addEventListener("click", function(){
+						document.body.className="done";
+						clockDisplay.destroy();
+						min=parseInt(input.getAttribute("min"));
+						max=parseInt(input.getAttribute("max"));
+						canvasWidth=canvas.offsetWidth;
+						canvasHeight=canvas.offsetHeight;
+						canvas.width=canvasWidth;
+						canvas.height=canvasHeight;
+						context=canvas.getContext("2d");
+						bar=min;
+						drawBar();
+					});
+
+					function drawBar()
+					{
+						findDays(bar);
+						var width=canvasWidth/(max-min+1);
+						var height=days[bar]*0.000003;
+						var x=width*(bar-min);
+						var y=canvasHeight-height;
+						context.fillRect(x, y, width, height);
+						if(bar<max)
+						{
+							bar++;
+							setTimeout(drawBar, 100);
+						}
+						else
+						{
+							clockDisplay=new ClockDisplay(input.value, clockHolder);
+						}
+					}
+			})();
+		</script>
+	</body>
+</html>
